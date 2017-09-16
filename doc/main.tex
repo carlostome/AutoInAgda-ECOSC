@@ -1,0 +1,374 @@
+\documentclass[12pt]{article}
+%include agda.fmt
+\usepackage{todonotes}
+\usepackage{color}
+\usepackage{graphicx}
+\newcommand{\AgdaFlag}[1]
+  {{\color{red}#1}}
+
+\begin{document}
+
+\section{Introduction}
+
+This experimentation project aims to investigate the possibilities offered by the
+newly introduced metaprogramming facilities in Agda (since version 2.5.2) for
+automatic program construction. This project is built upon the previous work
+AutoInAgda, by Kokke and Swiestra \cite{Kokke2015}.
+
+This document is organized as follows. In section \ref{sec:background} we give a
+small overview both of the AutoInAgda library which is used as starting point for
+this work and the metaprogramming API that we will use through the rest of the
+document. In section \ref{sec:thisproject}, we explain the main objective of this project
+and how it improves over the original AutoInAgda library. After properly
+motivating our work, we will throughly describe the project implementation
+details.In section \ref{sec:benchmark} we present the benchmarking results of this
+project against the original implementation. Finally, section
+\ref{sec:conclusions} concludes this report with a discussion about the pros and
+cons of our approach and hints some directions  for a possible future line of
+work.
+
+\section{Background}
+\label{sec:background}
+
+\subsection{AutoInAgda}
+\label{subsec:AutoInAgda}
+
+AutoInAgda is a library for automatic construction of Agda programs. Given a
+function definition whose type signature is complete but a hole stands for
+the body, the library provides a function |auto| that can be used in the place
+of the hole.
+
+If |auto| is able to find an Agda term of the required type, then the Agda file
+will typecheck as if the term was manually entered. Otherwise, a compile time
+type error will be raised and the programmer will be left with the
+responsibility of filling the goal.
+
+As an example, the paper shows that the following program successfully
+typechecks.
+
+\begin{code}
+  trivial : Even n -> Even (n + 2)
+  trivial = tactic (auto 5 hints)
+\end{code}
+
+\noindent
+i.e. |auto| is able to find an Agda term of type |Even n -> Even (n + 2)|.
+
+The procedure that AutoInAgda uses to solve the goal is as follows. First,
+the type of the hole (the type of the Agda term the hole stands for) is reified
+into a datatype that represents Agda terms. This Agda term is then translated to
+a custom first-order term datatype which is then used by a proof search
+procedure a la Prolog. Finally, in case of success the resulting term is
+translated back into Agda and replaced in the hole.
+
+The full process we just described is depicted in \ref{fig:diagram}.
+
+\begin{figure}[h]
+  \label{fig:diagram}
+  \includegraphics{diagram.png}
+\end{figure}
+
+\subsection{Metaprogramming in Agda 2.5.2}
+\label{subsec:metaprogramming}
+
+\todo{}
+
+\section{The project}
+\label{sec:thisproject}
+
+The starting objective of this project is to exploit the new metaprogramming API
+that Agda offers to improve the efficiency of the AutoInAgda library.
+
+In order to do so, the first step is to understand where advantage can be taken.
+From the figure in \ref{fig:diagram} it can be understood that there exists a great
+deal of overhead due to the translation of the Agda term representing the type
+of a hole into the internal first-order representation that the library uses.
+
+Moreover, the unification function that the library uses, based on the work by
+McBride \cite{McBride:2003:FUS:967499.967502}, can be replaced by the |unifyTC :
+Term -> Term -> TC ()| function that Agda provides in a primitive manner.
+Because |unifyTC| reflects the internal function used by Agda's typechecker
+(written in Haskell) whose code has been compiled, its usage will drastically
+improve the performance of unification.
+
+In a graphical manner, figure \ref{fig:diagram} depicts the conceptual changes
+to the library and how they affect the overall procedure of automatic program
+construction.
+
+Moreover, this project also addresses some other issues regarding the usability
+of the library from an engineering point of view. In the following listing we
+explain some of the main issues.
+
+\begin{itemize}
+    \label {listing:usability}
+    \item Inspecting the generated term
+      In its form, AutoInAgda automatically generated term is directly plugged
+      into the hole. Transformed from the first-order term representation the
+      library uses internally to the Agda terms the library does not provide a
+      means of printing to console the term.
+    \item Proof seach debugging
+      Proof search of terms that satisfy the type is done in a all-or-nothing
+      fashion. Either the search does yield one or more terms of the required
+      type or it does not. When this latter case happens it is not possible to
+      recover the proof search space tree to understand where Agda gets stuck.
+    \item Holes in proofs
+      Besides searching for a term with the given hint database, sometimes the
+      programmer would like to introduce further local hints to help with the
+      proof search procedure. Such thing is just not possible in AutoInAgda.
+\end{itemize}
+
+\section{Implementation}
+
+In this section, we explain the main changes the original implementation of
+AutoInAgda suffered in order to support the new API. Because the monadic nature
+of the reflection API, these changes make use of rather unsatisfying Agda flags
+such as |TERMINATING| or |NO_POSITIVITY_CHECK |. It is possible that
+alternative implementations of the ideas presented here can overcome such
+pittfalls but doing so would have been by a large extend out of the scope of
+this project.
+
+The three main components of the library that are affected by the changes are:
+
+\begin{itemize}
+    \item Term and rule representations
+    \item Proof search tree
+    \item Unification function over terms
+\end{itemize}
+
+In following subsections we proceed to explain the changes.
+
+\subsection{Term and rule representations}
+
+AutoInAgda defined a datatype of first-order terms that are the basic building
+brick of the library. This datatype, |Term|, is a type family indexed by the
+number of free variables a term may contain.
+
+\begin{figure}[h]
+\label{fig:term:AutoInAgda}
+\begin{code}
+  data Term (n : ℕ) : Set where
+      var : (x : Fin n) → Term n
+      con : (s : Name) (ts : List (Term n)) → Term n
+      lit : (l : Literal) → Term n
+\end{code}
+  \caption{|Term| datatype in AutoInAgda}
+\end{figure}
+
+The |Term| datatype uses the constructor |var| to stand for open unification
+variables. The constructor |con| then is used for function application,
+constructor application and skolem variables (i.e. variables that can not be
+instantiated during unification). The |lit| constructor is used for Agda's builtin
+literals such as the natural number datatype |Nat|.
+
+This datatype is essential to the proof search algorithm, which is
+reflected in how the proof search rules are encoded within the library. A rule
+is composed of a |Term| standing for its conclusion and a list of |Term|s that
+need to be satisfied so the rule can be applied.
+The following datatype accounts for this fact.
+
+\begin{figure}[h]
+\label{fig:term:Rule}
+\begin{code}
+  record Rule (n : ℕ) : Set where
+    constructor rule
+    field
+      name        : RuleName
+      conclusion  : Term n
+      premises    : List (Term n)
+\end{code}
+  \caption{|Rule| datatype in AutoInAgda}
+\end{figure}
+
+The last key ingredient of the library is the unification function. As expected
+the unification function works directly in the |Term| datatype returning a
+substitution for the unification variables in case the terms are unifiable. It
+has the following type.
+
+\begin{figure}
+\label{fig:unify:AutoInAgda}
+\begin{code}
+  unify : ∀ {m} → (t₁ t₂ : Term m) → Maybe (∃ (Subst m))
+\end{code}
+  \caption{Unification function type in AutoInAgda}
+\end{figure}
+
+As we mentioned before, there are some caveats by using such representations.
+First, Agda's type system is a higher-order language which cannot be encoded
+by using a first-order representation. AutoInAgda's choice was to throw a type
+error when a type could not be converted because for example used higher-order
+arguments.
+
+Secondly, there is an implicit overhead in the convertion of the Agda type to
+this custom datatype.
+
+For all this reasons we decided to use Agda datatype |Term| as exposed in the
+reflection library to replace the |Term| used by AutoInAgda.
+This datatype has the following defintion in the Agda module |Reflection|.
+
+\begin{figure}
+  \label{fig:term:reflection}
+\begin{code}
+  data Term where
+    var       : (x : Nat) (args : List (Arg Term)) → Term
+    con       : (c : Name) (args : List (Arg Term)) → Term
+    def       : (f : Name) (args : List (Arg Term)) → Term
+    lam       : (v : Visibility) (t : Abs Term) → Term
+    pat-lam   : (cs : List Clause) (args : List (Arg Term)) → Term
+    pi        : (a : Arg Type) (b : Abs Type) → Term
+    agda-sort : (s : Sort) → Term
+    lit       : (l : Literal) → Term
+    meta      : (x : Meta) → List (Arg Term) → Term
+    unknown   : Term
+\end{code}
+\end{figure}
+
+In comparison with the |Term| datatype as in figure \ref{fig:term:AutoInAgda},
+this datatype is richer (indeed, literally it can represent any Agda type). It
+is however quite different from the previous one. The |var| constructor
+represents a variable bound somewhere in a
+
+\begin{figure}
+\begin{code}
+  record Rule : Set where
+    constructor rule
+    field
+      rname       : RuleName
+      conclusion  : Term
+      premises    : List (Arg Term)
+\end{code}
+\end{figure}
+
+The |Rule| datatype has been changed to make use of the Agda |Term| datatype as
+defined in figure \ref{fig:term:reflection}. As locally bound variables have to
+be distiguished from functions or type constructors, we keep the rule |RuleName|
+field to do so.
+
+In order to generate a new rule, we use the reflection API to retrieve the type
+of the function or constructor as a |Term| value. Consequently, the term is
+procecessed such that every ocurrence of the |pi| constructor is striped off and
+the left handside (the argument) added as a premise. Finally, the remaining term
+is used as conclusion of the rule.
+
+As an example of how this process works, let us consider the function |isEven+2
+: ∀ {n} → Even n → Even (2 + n)| and show in a series of steps how the rule is
+created.
+
+We haven't mentioned yet why the premises hold the type |Arg Term| instead of
+simply |Term|. In a moment this will become clear why we do so.
+
+The purpose of a rule is to be used in the process of proof search. Because of
+this, the main interest we have is to understand how unification between the
+conclusion of the rule and the goal we need to solve is performed.
+
+Each time the conclusion of the rule has to be unified with some other term is
+important to distinguish between unification variables which can be instantiated
+and skolem variables which cannot. For example, in the rule generated by the
+constructor |isEven+2|, we would like that the natural number |n| indexing
+|Even| could be instantiated such that |Even (2 + n)| could be unified with
+|Even (suc (suc zero))|. To achieve such a thing, each time a rule has to be
+applied we must replace the local variables freshly created Agda |metavariable|.
+However, it is not desired that for every premise of a rule a metavariable is
+created because even if the proof search succeeds and the goal is solved, Agda
+will complain that there are still metavariables to be solved. To prevent this
+from happening our decision is to use the visibility of a variable as an
+indicator of whether a fresh metavariable should be created for this premise or
+not.
+
+This process of intantiating a rule is done by the following functions: 
+
+\begin{code}
+  instₜ : List (Maybe Term) → Term → Term
+  instₜ = ...
+
+  instᵣ : Rule → TC (List (Maybe Term) × Rule)
+  instᵣ = ...
+\end{code}
+
+The first one, given a list of metavariables corresponding to the debruijn index
+positions of the variables bound in a term will
+
+The second function performs the process of instantiating every premise of the
+rule in order and finally doing the same with the conclusion of the rule. As a
+return we get both the rule with the metavariables in place and a list of those
+metavariables that were created (mostly for debugging purposes).
+
+
+\begin{code}
+even+ : forall {n m : Nat} -> Even n -> Even m -> Even (n + m)
+\end{code}
+
+It is important to note, that everything left hidden in the type declaration
+will be instantiated to a new metavariable and in case this metavariable cannot
+be solved automatically by Agda the final term will prompt a warning about
+unsolved metas. As an example of this behaviour, consider the following
+function,
+
+\begin{code}
+silly : forall {n : Nat} -> Bool
+\end{code}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Proof search tree}
+
+The proof seach tree in the original approach used Agda coinduction constructors
+to represent finitely branching infinitely depth search trees. Because the
+unification function implemented was a pure function, this datatype was suitable
+to represent the proof search space of solutions.
+
+However, we have to adapt the datatype to the fact that the generation of the
+proofs happens in a monadic context due to the monadic nature of the unification
+function. Therefore, we are no longer able to represent the search tree as a
+pure datastructure if we want to still have a means of being able to decouple
+the generation of such a tree and its traversal.
+
+\subsection{Unification function}
+
+\section{Metaprogramming in Agda 2.5.2}
+\label{sec:Metaprogramming}
+
+
+\section{Benchmarking}
+
+In this section, we present a benchmark of the resulting implementation.
+
+\section{Conclusions and future work}
+
+\appendix
+
+\bibliographystyle{plain}
+\bibliography{bibliography}
+\end{document}

@@ -1,0 +1,12 @@
+[submodule "AutoInAgda"]
+	path = AutoInAgda
+	url = ./AutoInAgda
+[submodule "AutoInAgda-benchmark"]
+	path = AutoInAgda-benchmark
+	url = ./AutoInAgda-benchmark
+[submodule "ElaborationInAgda"]
+	path = ElaborationInAgda
+	url = /ElaborationInAgda
+[submodule "agda-steroids"]
+	path = agda-steroids
+	url = /agda-steroids/
