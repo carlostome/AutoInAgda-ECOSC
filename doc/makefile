@@ -6,4 +6,4 @@ all: main.tex
 	latexmk -pdf $(LATEXMK_OPTS) -jobname=main $(TEMP_FILE)
 
 clean:
-	latexmk $(LATEXMK_OPTS) -C main.tex
+	latexmk $(LATEXMK_OPTS) -c -C main.tex
