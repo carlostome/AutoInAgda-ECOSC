@@ -11,6 +11,7 @@
 \usepackage{autofe}
 \usepackage{tikz}
 \usepackage{navigator}
+\usepackage{url}
 
 \usetikzlibrary{arrows,shapes,fit}
 
@@ -53,8 +54,7 @@ Accompanying this report, a working implementation of the work explained here
 can be found in the GitHub repository:
 
 \begin{center}
-\urllink[, color = 1 0 0, dash = 3 2]{https://github.com/carlostome/AutoInAgda-ECOSC.git}
-{https://github.com/carlostome/AutoInAgda-ECOSC}
+\url{https://github.com/carlostome/AutoInAgda-ECOSC.git}
 \end{center}
 
 \section{AutoInAgda}
@@ -573,7 +573,7 @@ This representation, uses the |var| constructor to represent locally bound
 variables by they DeBruijn index. (this the argument |(x : Nat)|). If our
 intention is to use this type and be able to have unification variables on it
 (i.e. variables that can be unified with constructors or other variables) we
-need to rely in the |meta| constructor that stands for Agda's metavariables (or
+need to rely in the |meta| constructor that stands for Agda's |metavariable|s (or
 holes).
 
 Once, we settled on a representation for terms we need as well to define the
@@ -596,16 +596,16 @@ so, we define the following record.
 
 The |Rule| type has been adapted to make use of the Agda |Term| datatype as
 defined in figure \ref{fig:term:reflection}. As locally bound variables have to
-be distiguished from functions or type constructors, we keep the rule |RuleName|
+be distinguished from functions or type constructors, we keep the rule |RuleName|
 field to do so.
 
 In order to generate a new rule, we use the reflection API to retrieve the type
 of the function or constructor as a |Term| value. Consequently, the term is
-procecessed such that every ocurrence of the |pi| constructor is striped off and
+procecessed such that every occurrence of the |pi| constructor is striped off and
 the left handside (the argument) added as a premise. Finally, the remaining term
 is used as conclusion of the rule.
 
-We haven't mentioned yet why the premises hold the type |Arg Term| instead of
+We have not mentioned yet why the premises hold the type |Arg Term| instead of
 simply |Term|. In a moment this will become clear why we do so.
 
 The purpose of a rule is to be used in the process of proof search. Because of
@@ -619,13 +619,13 @@ rule |isEven+2 : ∀ {n} → Even n → Even (suc (suc n))| it is clear that
 |n| must stand for a unification variable so we can actually unify |n -> zero|.
 
 To achieve this, we decided that for a rule to be useful its local variables
-have to be replaced with Agda metavariables which will act as unification
+have to be replaced with Agda |metavariable|s which will act as unification
 variables. Eeach time a rule has to be applied we have to create fresh
-metavariables that will substitute the the local variables within the rule.
+|metavariable|s that will substitute the local variables within the rule.
 
-However, it is not desired that for every premise of a rule a metavariable is
+However, it is not desired that for every premise of a rule a |metavariable| is
 created because even if the proof search succeeds and the goal is solved, Agda
-will complain that there are still metavariables to be solved. In order to
+will complain that there are still |metavariable|s to be solved. In order to
 prevent this from happening, our decision is to use the visibility of the
 premise of a rule (given by the |Arg| type defined in the reflection API) as an
 indicator of whether we need to instantiate the premise with a fresh
@@ -646,21 +646,21 @@ This process of intantiating a rule is done by the following functions:
   \caption{Functions to instantiate a |Rule|}
 \end{figure}
 
-The first function, |inst-term|, given a list of possible metavariables of the
-adecuate type (in order to create a fresh |metavariable| we need to know its
+The first function, |inst-term|, given a list of possible |metavariable|s of the
+adequate type (in order to create a fresh |metavariable| we need to know its
 type in advance) will replace the local variables, i.e. those created with the
 |var| constructor, for the metavariable if any that occupies the DeBruijn index
 in the list the variable holds a reference to.
 
-The list of metavariables is of type |Maybe Term| because as we explained
-before, not all premises will be instantiated with fresh metavariables.
+The list of |metavariable|s is of type |Maybe Term| because as we explained
+before, not all premises will be instantiated with fresh |metavariable|s.
 
 The function, |inst-rule| performs the process of instantiating every premise
 from left to right. Each time a premise is instantiated, depending of its
 attribute |visibility| a new metavariable of its type will be created or not.
 
 As a small example, in the rule created from the function |even+ : forall {n m : Nat} -> Even n -> Even m -> Even (n + m)| the variables |n| and |m| of type
-|Nat| will be replaced by fresh metavariables of type |Nat| while no
+|Nat| will be replaced by fresh |metavariable|s of type |Nat| while no
 metavariable will be created for either the premises |Even n| or |Even m|.
 
 \subsection{Proof search tree}
@@ -670,15 +670,15 @@ decouple the generation of the proof search tree from the actual traversing of
 it. In order to do so, the proof search tree was represented as a Rose tree of
 finitely branching capacity but possibly infinitely depth.
 
-However, in our approach we have to change the represention of the tree in order
+However, in our approach we have to change the representation of the tree in order
 to account for the monadic nature of the functions involved for instantiation of
 rules and unification. Moreover, we need the backtracking power of the |TC| monad
 during the generation of the proof search tree.
 
 As in vanilla AutoInAgda, our design keeps a division between the generation of
-the proof search tree and the function that performs the traversal. This leaves
-open the possiblility of implementing different proof search strategies as
-before.
+the proof search tree and the function that performs the traversal. As a
+consequence, it remains the possibility of implementing different proof search
+strategies as before.
 
 
 
@@ -703,12 +703,13 @@ Figure \ref{fig:tree} exposes our representation of proof search trees. The main
 characteristic is that the |node| constructor holds a list of actions in the
 |TC| monad that will be used to generate subsequent trees.
 
-This has the effect of having to declare that the typechecker must not perform
-the possitivity check on the |SearchTree| type because there is no information
-of whether the |TC| type is positive or not in its argument. For our purposes, we
-assume |TC| this is the case and therefore use the flag to bypass the typechecker.
+Because of it, we need to impose that the typechecker must not perform the
+positivity check on the |SearchTree| type because there is no information of
+whether the |TC| type is positive or not in its argument. For our purposes, we
+assume |TC| this is the case and therefore use the flag to bypass the
+typechecker.
 
-The representation we have chosen is neccesary because each branching in the
+The representation we have chosen is necessary because each branching in the
 tree depends on an action performed in the |TC| monad. As the following
 function, |solve|, shows.
 
@@ -782,30 +783,32 @@ unsolved metavariables ilustrates this behaviour.
   \caption{Unification function example}
 \end{figure}
 
-The expected behaviour would be that the second call to |unify| fails because
-as |m| was unified to |zero| it cannot be unified to |n + 2|. However, the
-second |unify| does not fail and leaves the door open to generate non sense
-terms during proof search because unification won't fail even when is supposed
-to do so.
+The expected behaviour would be that the second call to |unify| fails because as
+|m| was unified to |zero| it cannot be unified to |n + 2|. However, the second
+|unify| does not fail. Therefore, extra care is to be taken so we do not
+generate non sensical terms during proof search.
 
-As a consequence of this, we have not to use the raw |unify| from the reflection
-API but to use it to build a more custom function that behaves more as we expect
-of it. To this matter, we have included an example |unify| function in the
-module |Unification| that is able to already rule out the example in figure
-\ref{fig:examplebad}.
+As a consequence, we restraint ourselves from using the raw |unify| function
+from the reflection API, and instead we use it as the basis to build a more
+custom function that behaves more as we expect of it. In order to exemplify
+this, we have included an example |unify| function in the module |Unification|
+that is able to already rule out the example in figure \ref{fig:examplebad}.
 
-However, it is not so clear how the unification function has to be customized in
-order to be able to find a solution for the programs we want but not generate
+However, it is not so clear how the unification function should be be customized
+in order to be able to find a solution for the programs we want but not generate
 terms that finally when reflected back into Agda will prevent the file from
 typechecking.
+
+More work in this area remains to be done in order to find a suitable |unify|
+function that is sensible to our desires.
 
 \section{Benchmarking}
 \label{sec:benchmark}
 
 In this section, we present a benchmark of the resulting implementation. For
 this matter, we have used the Haskell benchmarking library criterion
-\footnotetext{http://www.serpentine.com/criterion/}. In order to do so we have
-selected two simple examples that exhibit the improvement achieved in
+\footnotetext{\url{http://www.serpentine.com/criterion/}}. In order to do so we
+have selected two simple examples that exhibit the improvement achieved in
 performance terms.
 
 \begin{figure}[h]
@@ -822,7 +825,9 @@ libraries we would like to do so for different values.
 
 The benchmarking results of both implementations can be seen in figure
 \ref{fig:vanilla} for the original AutoInAgda and in figure \ref{fig:our} for
-the performance of the implementation presented here.
+the performance of the implementation presented here. The benchmarks have been
+done in a Macbook Air 6.1 (mid 2013) using Linux 4.12.13-1-ARCH \#1 SMP PREEMPT
+x86\_64 GNU/Linux.
 
 \begin{figure}[h]
   \includegraphics[scale=0.6]{benchmark-vanilla}
@@ -836,9 +841,12 @@ the performance of the implementation presented here.
   \label{fig:our}
 \end{figure}
 
-As we can see from the results above, our implementation has made anbig
-improvement in terms of performance in some cases in the range of $x15$ (case
-|EvenNum256|. For small cases the difference between implementations is
+As we can see from the results above, our implementation has made a big
+improvement in terms of performance reaching for example in the case of
+parameter 256 a improvement of $x15$. We were not able to benchmark the original
+library in bigger inputs because the compile time would be too much.
+
+For small cases the difference between implementations is
 despicable, although is worthy to note that there is always a lower limit of
 what we can achieve due to the requirement of Agda to check that every file we
 depend on has been already typechecked.
@@ -850,15 +858,17 @@ This work has explored the possibilities that the new Agda's metaprogramming API
 has to offer in order to automatise program construction. We have been able as
 shown in section \ref{sec:benchmark} to have a big performance boost with
 regard to the original implementation of the AutoInAgda library in some cases
-reaching a 10 \todo{real number here}. However, we have also noted that
-expressive wise our library deeply depends on how the internal |unify| (the one
-offered by the reflection API is just a reflection of the one used internally
-by the typechecker) function should be changed to allow automatic construction
-of more programs while retaining the ones it is already able to solve.
+reaching a 15x boost.
+
+However, we have also noted that expressive wise our library deeply depends on
+how the internal |unify| (the one offered by the reflection API is just a
+reflection of the one used internally by the typechecker) function should be
+changed to allow automatic construction of more programs while retaining the
+ones it is already able to solve.
 
 We believe that intimate knowledge of the inner workings of Agda's inference and
 typechecking algorithms is required to improve this situation. Nevertheless,
-this situation is not as bad because we have designed our framework to be
+The situation is not that bad because we have designed our framework to be
 |unify| agnostic. This is, we have parametrized the proof search by the
 unification function so it can be easily interchanged and tested.
 
