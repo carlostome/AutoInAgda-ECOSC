@@ -1,9 +1,10 @@
 TEMP_FILE    := $(shell mktemp)
 LATEXMK_OPTS := -bibtex
+MAIN := report
 
-all: main.tex
-	lhs2TeX --agda main.tex  > $(TEMP_FILE)
-	latexmk -pdf $(LATEXMK_OPTS) -jobname=main $(TEMP_FILE)
+all: $(MAIN).tex
+	lhs2TeX --agda $(MAIN).tex  > $(TEMP_FILE)
+	latexmk -pdf $(LATEXMK_OPTS) -jobname=$(MAIN) $(TEMP_FILE)
 
 clean:
-	latexmk $(LATEXMK_OPTS) -c -C main.tex
+	latexmk $(LATEXMK_OPTS) -c -C $(MAIN).tex

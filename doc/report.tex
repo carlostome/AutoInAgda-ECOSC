@@ -10,7 +10,8 @@
 % \usepackage{textcomp}
 \usepackage{autofe}
 \usepackage{tikz}
-% \usepackage{hyperref}
+\usepackage{navigator}
+
 \usetikzlibrary{arrows,shapes,fit}
 
 % Unicode characters for Agda
@@ -27,26 +28,34 @@
 
 \section{Introduction}
 
-In this experimentation project we aim to investigate the possibilities offered by
-the newly introduced metaprogramming facilities in Agda (since version 2.5.2)
-for automatic program construction. This project is built upon the previous work
-AutoInAgda, by Kokke and Swiestra \cite{Kokke2015}.
+In this experimentation project we aim to investigate the possibilities offered
+by the recently introduced metaprogramming facilities in Agda (since version
+2.5.2) for automatic program construction. The present project is built upon the
+previous work AutoInAgda, by Kokke and Swiestra \cite{Kokke2015}.
 
-This document is organized as follows. In section \ref{sec:AutoInAgda} we give a
+The document is organized as follows. In section \ref{sec:AutoInAgda} we give a
 small overview of the original AutoInAgda library, which is used as starting
-point for this work. Consequently in subsection \ref{subsec:improvements}, we
+point for this work. Consequently, in subsection \ref{subsec:improvements}, we
 explain the improvements made on top of it.
 
-In section \ref{sec:project}, we explain the original motivation for this
-project and in subsection \ref{subsec:implementation} we give a throughly
+In section \ref{sec:project}, we explain the original motivation for the project
+and in subsection \ref{subsec:implementation} we proceed with a throughly
 explanation of the work we have implemented.
 
 In section \ref{sec:benchmark} we present some the benchmarking results of the
-library implemented in this project against the original AutoInAgda library.
+library implemented against the original AutoInAgda library implementation.
 
 Finally, section \ref{sec:conclusions} concludes this report with a discussion
-about the pros and cons of our approach and hint some directions for a
-possible future line of work.
+about the pros and cons of our approach and hint some directions for a possible
+future line of work.
+
+Accompanying this report, a working implementation of the work explained here
+can be found in the GitHub repository:
+
+\begin{center}
+\urllink[, color = 1 0 0, dash = 3 2]{https://github.com/carlostome/AutoInAgda-ECOSC.git}
+{https://github.com/carlostome/AutoInAgda-ECOSC}
+\end{center}
 
 \section{AutoInAgda}
 \label{sec:AutoInAgda}
@@ -62,9 +71,11 @@ type error will be raised and the programmer will be left with the
 responsibility of filling the goal.
 
 In the rest of this document we will work with the following definitions in
-order to explain the different concepts concerning the work presented here.
+order to explain the different concepts we are concerned.
 
 \begin{figure}[h]
+\scriptsize
+\centering
 \begin{code}
  data Even  : ℕ →  Set where
     isEven0  : Even 0
@@ -78,35 +89,40 @@ order to explain the different concepts concerning the work presented here.
   \label{fig:agda_setup}
 \end{figure}
 
-The original implementation of the library, provides a function |auto| that
-given a database of rules (|hints|) and a maximum depth is able for example to
-make successfully typecheck the following program.
+As a first example, in the following function definition, we use |auto| instead 
+of manually entering a term of the correct type. The program successfully
+typechecks which means the library is able to find a suitable term of the type
+|Even n -> Even (n + 2)|.
 
 \begin{figure}[h]
-\begin{code}
-  trivial : Even n -> Even (n + 2)
-  trivial = apply (auto 5 hints)
-\end{code}
+\scriptsize
+\centering
+  \begin{code}
+    trivial : Even n -> Even (n + 2)
+    trivial = apply (auto 5 hints)
+  \end{code}
   \caption{Code example}
   \label{fig:agda_trivial}
 \end{figure}
 
 \noindent
 
-i.e. |auto| is able to find an Agda term of type |Even n -> Even (n + 2)|.
+It is convenient that we are able to parametrize |auto| both by the depth it
+will look for the solution in the search tree and the database of rules it will
+use to prove the goal.
 
-The procedure that AutoInAgda uses to solve the goal is as follows. First, the
-type of the hole (the type of the Agda term the hole stands for) is reified into
-a datatype (included in the reflection API) that represents Agda terms (Because
-of the dependently typed nature of Agda, there is no difference between terms at
-the term level and terms in the type level). The Agda term representing the type
-is then converted into to an internal first-order representation datatype. Then
-a proof search procedure `a la Prolog is executed in order to find a term
-satisfying the type. Finally, in case of success the resulting term is converted
-back into an Agda term and `replaced` (this happens internally with the
-reflection mechanism) in the hole.
+Under the hood, the procedure that AutoInAgda uses to solve the goal is as
+follows.  First, the type of the hole (the type of the Agda term the hole stands
+for) is reified into a datatype (included in the reflection API) that represents
+Agda terms (Because of the dependently typed nature of Agda, there is no
+difference between terms at the term level and terms in the type level). The
+Agda term representing the type is then converted into to an internal
+first-order representation. Then a proof search procedure `a la Prolog is
+executed in order to find a term satisfying the type. Finally, in case of
+success the resulting term is reflected back into an Agda term and `replaced`
+(this happens internally with the reflection mechanism) in the hole.
 
-The full process we just described is depicted in figure \ref{fig:diagram_orig}.
+The process we just described is depicted in figure \ref{fig:diagram_orig}.
 
 \begin{figure}[h]
   \centering
@@ -144,19 +160,19 @@ The full process we just described is depicted in figure \ref{fig:diagram_orig}.
 
   \end{tikzpicture}
   }
-  \label{fig:diagram_orig}
   \caption{How AutoInAgda works}
+  \label{fig:diagram_orig}
 \end{figure}
 
 \subsection{Improving vanilla AutoInAgda}
 \label{subsec:improvements}
 
-The first part of this experimentation project was to get acquainted with the
-library and update it to work with the latest version of the metaprogramming
-API.
+The first part of this experimentation project consisted on getting acquainted
+with the library and update it to work with the latest version of the
+metaprogramming API.
 
 Moreover, this project also addresses some issues regarding the usability
-of the library from an engineering point of view. In the following listing we
+of the library from an engineering point of view. In the following listing, we
 explain some of the main issues.
 
 \begin{itemize}
@@ -166,7 +182,7 @@ explain some of the main issues.
       into the hole. Transformed from the first-order term representation the
       library uses internally to the Agda terms the library does not provide a
       means of actively inspecting the term.
-    \item Proof seach debugging
+    \item Proof search debugging
       Proof search of terms that satisfy the type is done in a all-or-nothing
       fashion. Either the search does yield one or more terms of the required
       type or it does not. When this latter case happens it is not possible to
@@ -177,13 +193,14 @@ explain some of the main issues.
       proof search procedure. Such thing is just not possible in AutoInAgda.
 \end{itemize}
 
-As a poor man's technology for computer-user interaction, we choose to do so
-through the \textit{emacs} type error buffer that the \textbf{agda-mode}
-provides.The following program prints the automatically generated term as found
-by AutoInAgda. It is important to remark, that the use of the type error
-mechanism to interact with the user prevents the file from typechecking until
-|print| is changed for |apply| (this tactic replaces the original |tactic|
-function).
+As a poor man's technology for user-computer interaction, we choose to interact
+with the user through the \textit{emacs} type error buffer included in the 
+\textbf{agda-mode}.
+
+The following program prints the  automatically generated term as found by
+AutoInAgda. It is important to remark, that the use of the type error mechanism
+to interact with the user prevents the file from typechecking until |print| is
+changed for |apply| (this tactic replaces the original |tactic| function).
 
 \begin{figure}[h]
 \noindent\begin{minipage}{.40\textwidth}
@@ -204,13 +221,16 @@ Success: The Term found by auto is:
   \caption{Example program and its output to the error buffer}
 \end{figure}
 
-Another other improvement to the original library is to be able to print the proof
-search tree as has been explored during proof search. This is done by using the
-tactic |info| which shows at each level which rules were applied (by name) and
-whether this were successful or not. Moreover, the printed tree shows exactly
-the trace of how the proof search tree was explored thus depending on the
-strategy chosen it might be different. Continuing with the previous example we
-can print the proof search tree that lead to that term.
+Another improvement made to the original library is allow the user to print the
+proof search tree as has been explored during proof search. This can be
+displayed by using the tactic |info|. The display shows how the rules in the
+hint database were applied (by name) and whether they were successfully applied.
+
+Furthermore, the printed tree shows exactly the trace of how the proof search 
+tree was explored, thus depending on the strategy chosen it might be different.
+
+Continuing with the previous example we can print the proof search tree that
+lead to that term.
 
 \begin{figure}[h]
 \noindent\begin{minipage}{.40\textwidth}
@@ -255,7 +275,7 @@ Success Solution found. The trace generated is:
   \caption{Example program and its output to the error buffer}
 \end{figure}
 
-Our approach tries to emulate to some extend the same characteristic that it is
+Our approach emulates to some extent the same characteristic that it is
 available to Coq users and is extensively explained by Chlipala in
 \cite{9780262026659}.
 
@@ -292,16 +312,55 @@ Error: Solution can't be found. The trace generated is:
   \caption{Example program and its output to the error buffer}
 \end{figure}
 
-The original library required the goal type to be of the form |A -> B -> C|
-and if terms of type |A| and |B| where required to solve the goal then the body
-of the definition couldn't include the in the left hand side of the |=| symbol.
-We have changed this, with the benefit that now with little effort
-variables that we do not wish to be included in the hint database can be locally
-declared and would be in the scope of the proof search. As a silly example of
-this consider the following program
+On the other hand, if the problem is that the given depth is not enough to
+construct the term we will see that at the given depth there are some applied
+rules that succeeded (|✓|) but where not further explored. For example, in
+figure \ref{fig:depth} the rule generated by the argument |Even n| can be
+applied although the depth limit did not allow for further exploration.
 
-\begin{figure}[h]
+\begin{figure}
+\noindent\begin{minipage}{.40\textwidth}
 \scriptsize
+\begin{code}
+  test : ∀ {n} → Even n → Even (n + 16)
+  test = apply (auto 2 rules)
+\end{code}
+\end{minipage}
+\begin{minipage}{.55\textwidth}
+\scriptsize
+\begin{code}
+Error: Solution can't be found. The trace generated is:
+
+1.1 depth=2 isEven0 ×
+1.2 depth=2 isEven+2 ×
+1.3 depth=2 even+ ✓
+1.3.1 depth=1 isEven0 ×
+1.3.2 depth=1 isEven+2 ×
+1.3.3 depth=1 even+ ×
+1.3.4 depth=1 var 0 ✓
+1.3.5 depth=1 var 1 ×
+1.4 depth=2 var 0 ×
+1.5 depth=2 var 1 ×
+\end{code}
+\end{minipage}
+  \caption{Example program and its output to the error buffer}
+  \label{fig:depth}
+\end{figure}
+
+The original library required the type of the goal to be of the form |A -> B ->
+C| and could not make use of any local variables introduced in the left hand
+side of the equals symbol.
+
+We have improved this, with the added benefit that now with little effort we can
+make the proof search aware of local variables and variables defined within a
+|with| clause.
+As a silly example of this, consider the program in figure \ref{fig:silly}. The
+program is able to typecheck but the user is left with filling the remaining
+hole.
+
+\begin{figure}[ht]
+\scriptsize
+\centering
 \begin{code}
   _∋_ : (A : Set) → A → A
   _ ∋ x = x
@@ -311,11 +370,10 @@ this consider the following program
   ... | _ = apply (auto 5 (ε << isEven+2))
 \end{code}
   \caption{Example program with locally bound variables}
+  \label{fig:silly}
 \end{figure}
 
 \noindent
-The program is able to typecheck but the user is left with filling the remaining
-hole.
 
 \section{The project}
 \label{sec:project}
@@ -330,15 +388,16 @@ deal of overhead due to the translation of the Agda term representing the type
 of a hole into the internal first-order representation that the library uses.
 
 Moreover, the unification function that the library uses, based on the work by
-McBride \cite{McBride2003FirstorderUB}, can be replaced by the |unifyTC :
+McBride \cite{McBride2003FirstorderUB}, can be replaced by the |unify :
 Term -> Term -> TC ()| function that Agda provides in a primitive manner.
-Because |unifyTC| reflects the internal function used by Agda's typechecker
+
+Because |unify| reflects the internal function used by Agda's typechecker
 (written in Haskell) whose code has been compiled, its usage will drastically
 improve the performance of unification.
 
 In a graphical manner, figure \ref{fig:diagram} depicts the conceptual changes
 to the library and how they affect the overall procedure of automatic program
-construction that as explained above.
+construction.
 
 \begin{figure}[h]
   \centering
@@ -385,8 +444,8 @@ construction that as explained above.
 
   \end{tikzpicture}
   }
-  \label{fig:diagram}
   \caption{Improving AutoInAgda}
+  \label{fig:diagram}
 \end{figure}
 
 \subsection{Implementation}
@@ -395,10 +454,9 @@ construction that as explained above.
 In this section, we explain the main changes the original implementation of
 AutoInAgda suffered in order to support the new API. Because the monadic nature
 of the reflection API, these changes make use of rather unsatisfying Agda flags
-such as |TERMINATING| or |NO_POSITIVITY_CHECK |. It is possible that
-alternative implementations of the ideas presented here can overcome such
-pittfalls but doing so would have been by a large extend out of the scope of
-this project.
+such as |TERMINATING| or |NO_POSITIVITY_CHECK |. It is possible that alternative
+implementations of the ideas presented here can overcome such pitfalls but doing
+so would have been by a large extend out of the scope of this project.
 
 The three main components of the library that are affected by the changes are:
 
@@ -408,12 +466,12 @@ The three main components of the library that are affected by the changes are:
     \item Unification function over terms
 \end{itemize}
 
-In following subsections we proceed to explain the changes that these parts of
-the library suffered in order to accommodate the new reflection API.
+In following subsections we proceed to explain one by one the changes
+made in these three components.
 
 \subsection{Term and rule representations}
 
-AutoInAgda original library used a datatype of first-order terms that are the
+AutoInAgda original library used a type of first-order terms that are the
 basic building brick of the library. This datatype, |Term|, is a type family
 indexed by the number of free variables a term may contain.
 
@@ -678,7 +736,7 @@ function, |solve|, shows.
                   prm′ = Vec.map unArg (Vec.fromList (premises r))
                           Vec.++ gs
 \end{code}
-  \label{fig:tree}
+  \label{fig:solve}
   \caption{Solve function}
 \end{figure}
 
@@ -790,7 +848,7 @@ depend on has been already typechecked.
 
 This work has explored the possibilities that the new Agda's metaprogramming API
 has to offer in order to automatise program construction. We have been able as
-shown in section \ref{sec:benchmarking} to have a big performance boost with
+shown in section \ref{sec:benchmark} to have a big performance boost with
 regard to the original implementation of the AutoInAgda library in some cases
 reaching a 10 \todo{real number here}. However, we have also noted that
 expressive wise our library deeply depends on how the internal |unify| (the one
