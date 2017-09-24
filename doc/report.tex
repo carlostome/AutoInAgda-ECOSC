@@ -657,11 +657,11 @@ before, not all premises will be instantiated with fresh |metavariable|s.
 
 The function, |inst-rule| performs the process of instantiating every premise
 from left to right. Each time a premise is instantiated, depending of its
-attribute |visibility| a new metavariable of its type will be created or not.
+attribute |visibility| a new |metavariable| of its type will be created or not.
 
 As a small example, in the rule created from the function |even+ : forall {n m : Nat} -> Even n -> Even m -> Even (n + m)| the variables |n| and |m| of type
 |Nat| will be replaced by fresh |metavariable|s of type |Nat| while no
-metavariable will be created for either the premises |Even n| or |Even m|.
+|metavariable| will be created for either the premises |Even n| or |Even m|.
 
 \subsection{Proof search tree}
 
@@ -745,12 +745,12 @@ For each goal we have, every rule in the hint database has to be instantiated in
 order to check whether the rule can be applied, its premises become new goals to
 solve, or the conclusion doesn't unify with the goal. In the latter case we must
 discard any new |metavariable| created for this purpose or Agda will complain
-about unsolved metavariables when trying to typecheck the final solution.
+about unsolved |metavariable|s when trying to typecheck the final solution.
 
 As a result, the instantiation and unification are done inside a branch of the
 |TC| monad combinator |catchTC : TC A -> TC A -> TC A| (provided by the
 reflection API) so in case of failure we can backtrack without having
-free |metavariables| lying around.
+free |metavariable|s lying around.
 
 \subsection{Unification function}
 
@@ -761,7 +761,7 @@ unify and by using it in raw we are able to find solutions that are not
 solutions because when reflected back won't pass the typechecker.
 
 The following snipped of code which doesn't fail although it warns us about
-unsolved metavariables ilustrates this behaviour.
+unsolved |metavariable|s ilustrates this behaviour.
 
 \begin{figure}[h]
 \small
@@ -783,10 +783,10 @@ unsolved metavariables ilustrates this behaviour.
   \caption{Unification function example}
 \end{figure}
 
-The expected behaviour would be that the second call to |unify| fails because as
-|m| was unified to |zero| it cannot be unified to |n + 2|. However, the second
-|unify| does not fail. Therefore, extra care is to be taken so we do not
-generate non sensical terms during proof search.
+We expect that the second call to |unify| fails because as |m| was unified to
+|zero| it cannot be unified to |n + 2|. However, the second |unify| does not
+fail. Therefore, extra care is to be taken so we do not generate non sensical
+terms during proof search.
 
 As a consequence, we restraint ourselves from using the raw |unify| function
 from the reflection API, and instead we use it as the basis to build a more
@@ -846,10 +846,10 @@ improvement in terms of performance reaching for example in the case of
 parameter 256 a improvement of $x15$. We were not able to benchmark the original
 library in bigger inputs because the compile time would be too much.
 
-For small cases the difference between implementations is
-despicable, although is worthy to note that there is always a lower limit of
-what we can achieve due to the requirement of Agda to check that every file we
-depend on has been already typechecked.
+For small cases the difference between implementations is despicable, although
+it is worthy to note that there is always a lower bound of what we can achieve
+due to the requirement of Agda to check that every file we depend on has been
+already typechecked.
 
 \section{Conclusions and future work}
 \label{sec:conclusions}

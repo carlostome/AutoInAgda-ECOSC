@@ -6,6 +6,9 @@ University.
 In order to be able to use the Agda libraries is necessary to run the provided
 script `setup.sh`
 
+This project has been developed using Agda 2.5.2 and version 13 of the Agda
+standard library.
+
 ### Structure of the repository
 
   - the AutoInAgda folder contains the main library
